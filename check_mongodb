@@ -1,0 +1,85 @@
+#!/bin/bash
+
+print_usage() {
+  echo "Usage: $0 -cw <current_warning> -cc <current_critical> -aw <available_warning> -ac <available_critical> -tw <total_warning> -tc <total_critical> -awc <active_warning> -acc <active_critical>"
+  echo "Example: $0 -cw 50 -cc 80 -aw 1000 -ac 500 -tw 1000000 -tc 5000000 -awc 2 -acc 5"
+}
+
+# Default threshold values
+CURRENT_CONN_WARNING=120
+CURRENT_CONN_CRITICAL=150
+AVAILABLE_CONN_WARNING=1000
+AVAILABLE_CONN_CRITICAL=500
+TOTAL_CREATED_CONN_WARNING=5000000
+TOTAL_CREATED_CONN_CRITICAL=6000000
+ACTIVE_CONN_WARNING=10
+ACTIVE_CONN_CRITICAL=20
+
+# Parse command-line arguments
+while getopts 'cw:cc:aw:ac:tw:tc:awc:acc:h' flag; do
+  case "${flag}" in
+    cw) CURRENT_CONN_WARNING="${OPTARG}" ;;
+    cc) CURRENT_CONN_CRITICAL="${OPTARG}" ;;
+    aw) AVAILABLE_CONN_WARNING="${OPTARG}" ;;
+    ac) AVAILABLE_CONN_CRITICAL="${OPTARG}" ;;
+    tw) TOTAL_CREATED_CONN_WARNING="${OPTARG}" ;;
+    tc) TOTAL_CREATED_CONN_CRITICAL="${OPTARG}" ;;
+    awc) ACTIVE_CONN_WARNING="${OPTARG}" ;;
+    acc) ACTIVE_CONN_CRITICAL="${OPTARG}" ;;
+    h) print_usage
+       exit 0 ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
+
+# Get MongoDB connection statistics
+mongo_stats=$(mongo --quiet --eval "JSON.stringify(db.serverStatus().connections)")
+
+# Parse the JSON output to extract relevant stats
+current_conn=$(echo $mongo_stats | jq -r '.current')
+available_conn=$(echo $mongo_stats | jq -r '.available')
+total_created_conn=$(echo $mongo_stats | jq -r '.totalCreated')
+active_conn=$(echo $mongo_stats | jq -r '.active')
+
+# Get CPU and memory usage
+cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | awk -F"." '{print $1}')
+mem_usage=$(free | awk '/Mem/{printf("%.2f"), $3/$2*100}')
+
+# Check thresholds and generate output message
+msg=""
+
+if (( $current_conn >= $CURRENT_CONN_CRITICAL )); then
+  msg+="CRITICAL: "
+elif (( $current_conn >= $CURRENT_CONN_WARNING )); then
+  msg+="WARNING: "
+fi
+
+msg+="Current connections: $current_conn,"
+
+if (( $available_conn <= $AVAILABLE_CONN_CRITICAL )); then
+  msg+=" CRITICAL: "
+elif (( $available_conn <= $AVAILABLE_CONN_WARNING )); then
+  msg+=" WARNING: "
+fi
+
+msg+="Available connections: $available_conn,"
+
+if (( $total_created_conn >= $TOTAL_CREATED_CONN_CRITICAL )); then
+  msg+=" CRITICAL: "
+elif (( $total_created_conn >= $TOTAL_CREATED_CONN_WARNING )); then
+  msg+=" WARNING: "
+fi
+
+msg+="Total created connections: $total_created_conn,"
+
+if (( $active_conn >= $ACTIVE_CONN_CRITICAL )); then
+  msg+=" CRITICAL: "
+elif (( $active_conn >= $ACTIVE_CONN_WARNING )); then
+  msg+=" WARNING: "
+fi
+
+msg+="Active connections: $active_conn, CPU utilization: $cpu_usage%, Memory usage: $mem_usage%"
+
+echo $msg
+

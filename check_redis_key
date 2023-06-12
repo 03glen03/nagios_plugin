@@ -1,0 +1,16 @@
+#!/bin/bash
+
+REDIS_PORT=10379
+
+# Get the number of databases in Redis
+DB_COUNT=$(redis-cli -p $REDIS_PORT info | grep "^db" | wc -l)
+
+# Loop through each database and get its key count
+for ((i=0;i<$DB_COUNT;i++)); do
+    KEY_INFO=$(redis-cli -p $REDIS_PORT info keyspace | grep "^db$i:")
+    KEY_COUNT=$(echo "$KEY_INFO" | awk -F ',' '{print $1}' | awk -F '=' '{print $2}')
+    EXPIRE_COUNT=$(echo "$KEY_INFO" | awk -F ',' '{print $2}' | awk -F '=' '{print $2}')
+    AVG_TTL=$(echo "$KEY_INFO" | awk -F ',' '{print $3}' | awk -F '=' '{print $2}')
+    echo "db$i:keys=$KEY_COUNT,expires=$EXPIRE_COUNT,avg_ttl=$AVG_TTL"
+done
+

@@ -1,0 +1,82 @@
+#! /bin/bash
+
+ECHO="/bin/echo"
+GREP="/bin/egrep"
+DIFF="/usr/bin/diff"
+TAIL="/usr/bin/tail"
+CAT="/bin/cat"
+RM="/bin/rm"
+CHMOD="/bin/chmod"
+TOUCH="/bin/touch"
+
+PROGNAME=`/usr/bin/basename $0`
+PROGPATH=`echo $0 | sed -e 's,[\\/][^\\/][^\\/]*$,,'`
+REVISION="0.1"
+
+#. $PROGPATH/utils.sh
+
+print_usage() {
+    echo "Usage: $PROGNAME"
+    echo "Usage: $PROGNAME --help"
+    echo "Usage: $PROGNAME --version"
+}
+
+print_help() {
+    print_revision $PROGNAME $REVISION
+    echo ""
+    print_usage
+    echo ""
+    echo "Check nginx Running or not"
+    echo ""
+    support
+}
+
+# Grab the command line arguments
+
+exitstatus=$STATE_WARNING #default
+while test -n "$1"; do
+    case "$1" in
+        --help)
+            print_help
+            exit $STATE_OK
+            ;;
+        -h)
+            print_help
+            exit $STATE_OK
+            ;;
+        --version)
+            print_revision $PROGNAME $REVISION
+            exit $STATE_OK
+            ;;
+        -V)
+            print_revision $PROGNAME $REVISION
+            exit $STATE_OK
+            ;;
+        -x)
+            exitstatus=$2
+            shift
+            ;;
+        --exitstatus)
+            exitstatus=$2
+            shift
+            ;;
+        * )
+            echo "Unknown argument: $1"
+            print_usage
+            exit $STATE_UNKNOWN
+            ;;
+    esac
+    shift
+done
+
+# If the source log file doesn't exist, exit
+A=`ps -C nginx --no-header | wc -l`
+if [ $A -eq 0 ];then
+    $ECHO "nginx is not running\n"
+    exit $STATE_CRITICAL
+else
+    $ECHO "nginx is running with $A processes"
+    exit $STATE_OK
+fi
+
+exit $exitstatus
